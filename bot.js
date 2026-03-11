@@ -12,6 +12,7 @@ let timer = null;
 let running = false;
 
 function predict(){
+
   if(history.length < 3){
     return Math.random() < 0.5 ? "Big" : "Small";
   }
@@ -28,6 +29,7 @@ function predict(){
 }
 
 bot.onText(/\/start/, (msg)=>{
+
   const chatId = msg.chat.id;
 
   if(running){
@@ -50,9 +52,11 @@ bot.onText(/\/start/, (msg)=>{
     bot.sendMessage(chatId, period + " " + result);
 
   },30000);
+
 });
 
 bot.onText(/\/stop/, (msg)=>{
+
   const chatId = msg.chat.id;
 
   if(!running){
@@ -68,9 +72,11 @@ bot.onText(/\/stop/, (msg)=>{
   }
 
   bot.sendMessage(chatId,"Prediction Stopped");
+
 });
 
 bot.on('message',(msg)=>{
+
   const text = msg.text;
 
   if(!text) return;
@@ -79,12 +85,20 @@ bot.on('message',(msg)=>{
   const parts = text.split(" ");
 
   if(parts.length === 2){
+
     const p = parseInt(parts[0]);
     const r = parts[1];
 
-    if(!isNaN(p) && (r=="Big" || r=="Small")){
+    if(!isNaN(p) && (r === "Big" || r === "Small")){
+
       period = p;
+
       history.push(r);
+
     }
+
   }
+
 });
+
+console.log("Bot running...");
