@@ -6,15 +6,8 @@ const bot = new TelegramBot(token, { polling: true });
 
 let period = 0;
 let history = [];
-let running = false;
 let timer = null;
-
-function getBigSmall(num){
-
-    if(num >= 5) return "Big";
-    return "Small";
-
-}
+let running = false;
 
 function predict(){
 
@@ -31,7 +24,6 @@ function predict(){
     }
 
     return Math.random() < 0.5 ? "Big" : "Small";
-
 }
 
 bot.onText(/\/start/, (msg)=>{
@@ -55,7 +47,7 @@ bot.onText(/\/start/, (msg)=>{
 
         history.push(result);
 
-        bot.sendMessage(chatId,period + " " + result);
+        bot.sendMessage(chatId, period + " " + result);
 
     },30000);
 
@@ -65,9 +57,12 @@ bot.onText(/\/stop/, (msg)=>{
 
     const chatId = msg.chat.id;
 
-    running = false;
+    if(timer){
+        clearInterval(timer);
+        timer = null;
+    }
 
-    clearInterval(timer);
+    running = false;
 
     bot.sendMessage(chatId,"Prediction Stopped");
 
@@ -86,27 +81,14 @@ bot.on('message',(msg)=>{
     if(parts.length === 2){
 
         const p = parseInt(parts[0]);
-        const value = parts[1];
+        const r = parts[1];
 
-        if(!isNaN(p)){
+        if(!isNaN(p) && (r=="Big" || r=="Small")){
 
             period = p;
-
-            if(!isNaN(value)){
-
-                const result = getBigSmall(parseInt(value));
-
-                history.push(result);
-
-            }
-            else{
-
-                history.push(value);
-
-            }
+            history.push(r);
 
         }
-
     }
 
 });
