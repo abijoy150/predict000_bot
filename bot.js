@@ -1,11 +1,10 @@
 const TelegramBot = require('node-telegram-bot-api');
-const express = require('express');
+const Tesseract = require('tesseract.js');
+const fs = require('fs');
 
 const token = "8658261115:AAHaU5Is9iXGPk664D5L53tK3qonFtEYY18";
 
 const bot = new TelegramBot(token, { polling: true });
-
-const app = express();
 
 let history = [];
 let period = 0;
@@ -33,7 +32,7 @@ bot.onText(/\/start/, (msg) => {
     const chatId = msg.chat.id;
 
     if(interval){
-        bot.sendMessage(chatId,"Already running");
+        bot.sendMessage(chatId,"Already Running");
         return;
     }
 
@@ -67,6 +66,9 @@ bot.onText(/\/stop/, (msg) => {
 bot.on('message',(msg)=>{
 
     const text = msg.text;
+
+    if(!text) return;
+
     const parts = text.split(" ");
 
     if(parts.length === 2){
@@ -84,11 +86,23 @@ bot.on('message',(msg)=>{
 
 });
 
-app.get("/", (req,res)=>{
-    res.send("Bot running");
-});
+bot.on('photo', async (msg) => {
 
-const PORT = process.env.PORT || 3000;
-app.listen(PORT,()=>{
-    console.log("Server running");
+    const chatId = msg.chat.id;
+
+    const fileId = msg.photo[msg.photo.length - 1].file_id;
+
+    const file = await bot.getFileLink(fileId);
+
+    const path = "image.jpg";
+
+    const res = await fetch(file.href);
+    const buffer = await res.arrayBuffer();
+
+    fs.writeFileSync(path, Buffer.from(buffer));
+
+    const result = await Tesseract.recognize(path,'eng');
+
+    bot.sendMessage(chatId,"Detected Text:\n"+result.data.text);
+
 });
