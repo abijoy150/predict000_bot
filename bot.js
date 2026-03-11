@@ -1,14 +1,20 @@
 const TelegramBot = require('node-telegram-bot-api');
-const Tesseract = require('tesseract.js');
-const fs = require('fs');
 
 const token = "8658261115:AAHaU5Is9iXGPk664D5L53tK3qonFtEYY18";
 
 const bot = new TelegramBot(token, { polling: true });
 
-let history = [];
 let period = 0;
-let interval = null;
+let history = [];
+let running = false;
+let timer = null;
+
+function getBigSmall(num){
+
+    if(num >= 5) return "Big";
+    return "Small";
+
+}
 
 function predict(){
 
@@ -25,20 +31,23 @@ function predict(){
     }
 
     return Math.random() < 0.5 ? "Big" : "Small";
+
 }
 
-bot.onText(/\/start/, (msg) => {
+bot.onText(/\/start/, (msg)=>{
 
     const chatId = msg.chat.id;
 
-    if(interval){
+    if(running){
         bot.sendMessage(chatId,"Already Running");
         return;
     }
 
+    running = true;
+
     bot.sendMessage(chatId,"Prediction Started");
 
-    interval = setInterval(()=>{
+    timer = setInterval(()=>{
 
         period++;
 
@@ -52,12 +61,13 @@ bot.onText(/\/start/, (msg) => {
 
 });
 
-bot.onText(/\/stop/, (msg) => {
+bot.onText(/\/stop/, (msg)=>{
 
     const chatId = msg.chat.id;
 
-    clearInterval(interval);
-    interval = null;
+    running = false;
+
+    clearInterval(timer);
 
     bot.sendMessage(chatId,"Prediction Stopped");
 
@@ -69,40 +79,34 @@ bot.on('message',(msg)=>{
 
     if(!text) return;
 
+    if(text.startsWith("/")) return;
+
     const parts = text.split(" ");
 
     if(parts.length === 2){
 
         const p = parseInt(parts[0]);
-        const r = parts[1];
+        const value = parts[1];
 
-        if(!isNaN(p) && (r=="Big" || r=="Small")){
+        if(!isNaN(p)){
 
             period = p;
-            history.push(r);
+
+            if(!isNaN(value)){
+
+                const result = getBigSmall(parseInt(value));
+
+                history.push(result);
+
+            }
+            else{
+
+                history.push(value);
+
+            }
 
         }
+
     }
-
-});
-
-bot.on('photo', async (msg) => {
-
-    const chatId = msg.chat.id;
-
-    const fileId = msg.photo[msg.photo.length - 1].file_id;
-
-    const file = await bot.getFileLink(fileId);
-
-    const path = "image.jpg";
-
-    const res = await fetch(file.href);
-    const buffer = await res.arrayBuffer();
-
-    fs.writeFileSync(path, Buffer.from(buffer));
-
-    const result = await Tesseract.recognize(path,'eng');
-
-    bot.sendMessage(chatId,"Detected Text:\n"+result.data.text);
 
 });
