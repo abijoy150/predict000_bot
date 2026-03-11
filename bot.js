@@ -1,7 +1,11 @@
 const TelegramBot = require('node-telegram-bot-api');
+const express = require('express');
 
-const token = "8658261115:AAHaU5Is9iXGPk664D5L53tK3qonFtEYY18";
+const token = "YOUR_NEW_TOKEN";
+
 const bot = new TelegramBot(token, { polling: true });
+
+const app = express();
 
 let history = [];
 let period = 0;
@@ -78,4 +82,13 @@ bot.on('message',(msg)=>{
         }
     }
 
+});
+
+app.get("/", (req,res)=>{
+    res.send("Bot running");
+});
+
+const PORT = process.env.PORT || 3000;
+app.listen(PORT,()=>{
+    console.log("Server running");
 });
