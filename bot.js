@@ -5,25 +5,22 @@ const token = "8658261115:AAHFbcedXTWQdZEWVZEDqEm9ZJSt4GLvA_s";
 
 const bot = new TelegramBot(token, { polling: true });
 
-/* Render free port fix */
+/* Render port fix */
 const app = express();
 app.get("/", (req,res)=>{
   res.send("Bot running");
 });
-
-app.listen(process.env.PORT || 3000, ()=>{
-  console.log("Server running");
-});
+app.listen(process.env.PORT || 3000);
 
 
-/* BOT DATA */
+/* DATA */
 
 let history = [];
 let period = 0;
 let interval = null;
 
 
-/* PREDICTION LOGIC */
+/* PREDICTION */
 
 function predict(){
 
@@ -57,7 +54,7 @@ bot.onText(/\/start/, (msg)=>{
 
   interval = setInterval(()=>{
 
-    period++;
+    period = period + 1;
 
     const result = predict();
 
@@ -86,30 +83,35 @@ bot.onText(/\/stop/, (msg)=>{
 });
 
 
-/* MANUAL RESULT INPUT */
+/* MULTI LINE RESULT INPUT */
 
 bot.on('message',(msg)=>{
 
   const text = msg.text;
-
   if(!text) return;
 
-  const parts = text.split(" ");
+  const lines = text.split("\n");
 
-  if(parts.length === 2){
+  lines.forEach(line => {
 
-    const p = parseInt(parts[0]);
-    const r = parts[1].toLowerCase();
+    const parts = line.trim().split(" ");
 
-    if(!isNaN(p) && (r === "big" || r === "small")){
+    if(parts.length === 2){
 
-      period = p;
+      const p = parseInt(parts[0]);
+      const r = parts[1].toLowerCase();
 
-      history.push(r === "big" ? "Big" : "Small");
+      if(!isNaN(p) && (r === "big" || r === "small")){
+
+        period = p;
+
+        history.push(r === "big" ? "Big" : "Small");
+
+      }
 
     }
 
-  }
+  });
 
 });
 
