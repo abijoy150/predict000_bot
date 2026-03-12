@@ -1,110 +1,106 @@
 const TelegramBot = require('node-telegram-bot-api');
-const fs = require('fs');
+const express = require('express');
 
 const token = "8658261115:AAHFbcedXTWQdZEWVZEDqEm9ZJSt4GLvA_s";
-const bot = new TelegramBot(token,{ polling:true });
 
-let running = false;
+const bot = new TelegramBot(token, { polling: true });
 
-let data = {
-  period:null,
-  history:[]
-};
-
-if(fs.existsSync("data.json")){
-  data = JSON.parse(fs.readFileSync("data.json"));
-}
-
-function save(){
-  fs.writeFileSync("data.json",JSON.stringify(data));
-}
-
-function analyzeTrend(){
-
-  const last = data.history.slice(-10);
-
-  let big = last.filter(x=>x==="Big").length;
-  let small = last.filter(x=>x==="Small").length;
-
-  if(big > small) return "Small";
-  if(small > big) return "Big";
-
-  return Math.random() < 0.5 ? "Big" : "Small";
-}
-
-async function loop(chatId){
-
-  while(running){
-
-    await new Promise(r=>setTimeout(r,30000));
-
-    if(!running) break;
-
-    data.period++;
-
-    const prediction = analyzeTrend();
-
-    bot.sendMessage(chatId,
-      "Period: "+data.period+
-      "\nPrediction: "+prediction
-    );
-  }
-
-}
-
-bot.onText(/\/start/, msg=>{
-
-  const chatId = msg.chat.id;
-
-  if(data.period === null){
-    bot.sendMessage(chatId,"Send last result first\nExample: 554 Big");
-    return;
-  }
-
-  if(running){
-    bot.sendMessage(chatId,"Already running");
-    return;
-  }
-
-  running = true;
-
-  bot.sendMessage(chatId,"Prediction started");
-
-  loop(chatId);
-
+/* Render free port fix */
+const app = express();
+app.get("/", (req,res)=>{
+    res.send("Bot running");
 });
+app.listen(process.env.PORT || 3000);
 
-bot.onText(/\/stop/, msg=>{
+/* bot system */
 
-  running = false;
+let history = [];
+let period = 0;
+let interval = null;
 
-  bot.sendMessage(msg.chat.id,"Prediction stopped");
+/* prediction logic */
+function predict(){
 
-});
-
-bot.on("message", msg=>{
-
-  const text = msg.text;
-
-  if(!text) return;
-  if(text.startsWith("/")) return;
-
-  const parts = text.split(" ");
-
-  if(parts.length === 2){
-
-    const p = parseInt(parts[0]);
-    const r = parts[1];
-
-    if(!isNaN(p) && (r==="Big" || r==="Small")){
-
-      data.period = p;
-      data.history.push(r);
-
-      save();
+    if(history.length < 3){
+        return Math.random() < 0.5 ? "Big" : "Small";
     }
 
-  }
+    const a = history[history.length-1];
+    const b = history[history.length-2];
+    const c = history[history.length-3];
+
+    if(a === b && b === c){
+        return a === "Big" ? "Small" : "Big";
+    }
+
+    return Math.random() < 0.5 ? "Big" : "Small";
+}
+
+/* START */
+
+bot.onText(/\/start/, (msg)=>{
+
+    const chatId = msg.chat.id;
+
+    if(interval){
+        bot.sendMessage(chatId,"Already running");
+        return;
+    }
+
+    bot.sendMessage(chatId,"Prediction Started");
+
+    interval = setInterval(()=>{
+
+        period++;
+
+        const result = predict();
+
+        history.push(result);
+
+        bot.sendMessage(chatId, period + " " + result);
+
+    },30000);
+
+});
+
+/* STOP */
+
+bot.onText(/\/stop/, (msg)=>{
+
+    const chatId = msg.chat.id;
+
+    if(interval){
+        clearInterval(interval);
+        interval = null;
+    }
+
+    bot.sendMessage(chatId,"Prediction Stopped");
+
+});
+
+/* manual result input */
+
+bot.on('message',(msg)=>{
+
+    const text = msg.text;
+
+    if(!text) return;
+
+    const parts = text.split(" ");
+
+    if(parts.length === 2){
+
+        const p = parseInt(parts[0]);
+        const r = parts[1].toLowerCase();
+
+        if(!isNaN(p) && (r === "big" || r === "small")){
+
+            period = p;
+
+            history.push(r === "big" ? "Big" : "Small");
+
+        }
+    }
 
 });
 
