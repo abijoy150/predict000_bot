@@ -1,141 +1,131 @@
-const TelegramBot = require("node-telegram-bot-api");
-const express = require("express");
+const TelegramBot = require('node-telegram-bot-api');
 
-const TOKEN = "8658261115:AAHFbcedXTWQdZEWVZEDqEm9ZJSt4GLvA_s";
+const token = "8658261115:AAHFbcedXTWQdZEWVZEDqEm9ZJSt4GLvA_s";
 
-const bot = new TelegramBot(TOKEN, { polling: true });
+const bot = new TelegramBot(token, { polling: true });
 
-/* Render server */
-
-const app = express();
-
-app.get("/", (req, res) => {
-  res.send("Bot running");
-});
-
-app.listen(process.env.PORT || 3000);
-
-
-/* DATA */
+bot.deleteWebHook();
 
 let running = false;
 let interval = null;
-let period = 0;
+
 let history = [];
+let period = 0;
 
+function analyze(){
 
-/* prediction */
-
-function predict() {
-
-  if (history.length < 3) {
-    return Math.random() < 0.5 ? "Big" : "Small";
-  }
-
-  const a = history[history.length - 1];
-  const b = history[history.length - 2];
-  const c = history[history.length - 3];
-
-  if (a === b && b === c) {
-    return a === "Big" ? "Small" : "Big";
-  }
-
-  return Math.random() < 0.5 ? "Big" : "Small";
+if(history.length < 3){
+return Math.random() > 0.5 ? "Big" : "Small";
 }
 
+let last = history.slice(-3);
 
-/* send prediction */
+let big = last.filter(x => x=="Big").length;
+let small = last.filter(x => x=="Small").length;
 
-function sendPrediction(chatId) {
+if(big > small) return "Small";
+if(small > big) return "Big";
 
-  period++;
-
-  const result = predict();
-
-  history.push(result);
-
-  bot.sendMessage(chatId, period + " " + result);
+return Math.random() > 0.5 ? "Big" : "Small";
 
 }
 
+function sendPrediction(chatId){
 
-/* START */
+let result = analyze();
 
-bot.onText(/\/start/, (msg) => {
+period++;
 
-  const chatId = msg.chat.id;
+bot.sendMessage(chatId, `${period} ${result}`);
 
-  if (running) {
-    bot.sendMessage(chatId, "Already running");
-    return;
-  }
+history.push(result);
 
-  running = true;
+}
 
-  bot.sendMessage(chatId, "Prediction started");
+function startLoop(chatId){
 
-  sendPrediction(chatId);
+if(interval){
+clearInterval(interval);
+}
 
-  interval = setInterval(() => {
+interval = setInterval(()=>{
 
-    if (!running) return;
+if(!running) return;
 
-    sendPrediction(chatId);
+sendPrediction(chatId);
 
-  }, 30000);
+},30000);
+
+}
+
+bot.onText(/\/start/, (msg)=>{
+
+const chatId = msg.chat.id;
+
+if(running){
+bot.sendMessage(chatId,"Already Running");
+return;
+}
+
+running = true;
+
+bot.sendMessage(chatId,"Prediction Started");
+
+sendPrediction(chatId);
+
+startLoop(chatId);
 
 });
 
+bot.onText(/\/stop/, (msg)=>{
 
-/* STOP */
+const chatId = msg.chat.id;
 
-bot.onText(/\/stop/, (msg) => {
+running = false;
 
-  const chatId = msg.chat.id;
+if(interval){
+clearInterval(interval);
+interval = null;
+}
 
-  running = false;
-
-  if (interval) {
-    clearInterval(interval);
-    interval = null;
-  }
-
-  bot.sendMessage(chatId, "Prediction stopped");
+bot.sendMessage(chatId,"Prediction Stopped");
 
 });
 
+bot.on('message',(msg)=>{
 
-/* manual input */
+const chatId = msg.chat.id;
 
-bot.on("message", (msg) => {
+const text = msg.text;
 
-  const text = msg.text;
+if(!text) return;
 
-  if (!text) return;
+if(text.startsWith("/")) return;
 
-  if (text.startsWith("/")) return;
+let lines = text.split("\n");
 
-  const lines = text.split("\n");
+history = [];
 
-  lines.forEach(line => {
+lines.forEach(line=>{
 
-    const parts = line.trim().split(" ");
+let parts = line.trim().split(" ");
 
-    if (parts.length === 2) {
+if(parts.length==2){
 
-      const p = parseInt(parts[0]);
-      const r = parts[1].toLowerCase();
+let p = parseInt(parts[0]);
 
-      if (!isNaN(p) && (r === "big" || r === "small")) {
+let r = parts[1];
 
-        period = p;
+if(!isNaN(p)){
 
-        history.push(r === "big" ? "Big" : "Small");
+period = p;
 
-      }
+history.push(r);
 
-    }
+}
 
-  });
+}
+
+});
 
 });
