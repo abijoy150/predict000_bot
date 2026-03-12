@@ -1,10 +1,16 @@
 const TelegramBot = require('node-telegram-bot-api');
+const express = require('express');
 
 const token = "8658261115:AAHFbcedXTWQdZEWVZEDqEm9ZJSt4GLvA_s";
 
-const bot = new TelegramBot(token, { polling: true });
+const bot = new TelegramBot(token);
+const app = express();
 
-bot.deleteWebHook();
+app.use(express.json());
+
+const url = "https://predict000-bot-1.onrender.com";
+
+bot.setWebHook(`${url}/bot${token}`);
 
 let period = 0;
 let history = [];
@@ -12,7 +18,6 @@ let timer = null;
 let running = false;
 
 function predict(){
-
   if(history.length < 3){
     return Math.random() < 0.5 ? "Big" : "Small";
   }
@@ -28,8 +33,12 @@ function predict(){
   return Math.random() < 0.5 ? "Big" : "Small";
 }
 
-bot.onText(/\/start/, (msg)=>{
+app.post(`/bot${token}`, (req,res)=>{
+  bot.processUpdate(req.body);
+  res.sendStatus(200);
+});
 
+bot.onText(/\/start/, (msg)=>{
   const chatId = msg.chat.id;
 
   if(running){
@@ -42,27 +51,17 @@ bot.onText(/\/start/, (msg)=>{
   bot.sendMessage(chatId,"Prediction Started");
 
   timer = setInterval(()=>{
-
     period++;
-
     const result = predict();
-
     history.push(result);
 
     bot.sendMessage(chatId, period + " " + result);
 
   },30000);
-
 });
 
 bot.onText(/\/stop/, (msg)=>{
-
   const chatId = msg.chat.id;
-
-  if(!running){
-    bot.sendMessage(chatId,"Already Stopped");
-    return;
-  }
 
   running = false;
 
@@ -72,11 +71,9 @@ bot.onText(/\/stop/, (msg)=>{
   }
 
   bot.sendMessage(chatId,"Prediction Stopped");
-
 });
 
 bot.on('message',(msg)=>{
-
   const text = msg.text;
 
   if(!text) return;
@@ -85,20 +82,16 @@ bot.on('message',(msg)=>{
   const parts = text.split(" ");
 
   if(parts.length === 2){
-
     const p = parseInt(parts[0]);
     const r = parts[1];
 
-    if(!isNaN(p) && (r === "Big" || r === "Small")){
-
+    if(!isNaN(p) && (r==="Big" || r==="Small")){
       period = p;
-
       history.push(r);
-
     }
-
   }
-
 });
 
-console.log("Bot running...");
+app.listen(3000,()=>{
+  console.log("Bot running...");
+});
