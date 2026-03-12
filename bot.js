@@ -1,35 +1,63 @@
 const TelegramBot = require('node-telegram-bot-api');
+const fs = require('fs');
 
 const token = "8658261115:AAHFbcedXTWQdZEWVZEDqEm9ZJSt4GLvA_s";
-const bot = new TelegramBot(token, { polling: true });
+const bot = new TelegramBot(token,{ polling:true });
 
-let period = null;
-let history = [];
-let timer = null;
 let running = false;
 
-function predict(){
-  if(history.length < 3){
-    return Math.random() < 0.5 ? "Big" : "Small";
-  }
+let data = {
+  period:null,
+  history:[]
+};
 
-  const a = history[history.length-1];
-  const b = history[history.length-2];
-  const c = history[history.length-3];
+if(fs.existsSync("data.json")){
+  data = JSON.parse(fs.readFileSync("data.json"));
+}
 
-  if(a === b && b === c){
-    return a === "Big" ? "Small" : "Big";
-  }
+function save(){
+  fs.writeFileSync("data.json",JSON.stringify(data));
+}
+
+function analyzeTrend(){
+
+  const last = data.history.slice(-10);
+
+  let big = last.filter(x=>x==="Big").length;
+  let small = last.filter(x=>x==="Small").length;
+
+  if(big > small) return "Small";
+  if(small > big) return "Big";
 
   return Math.random() < 0.5 ? "Big" : "Small";
 }
 
-bot.onText(/\/start/, (msg) => {
+async function loop(chatId){
+
+  while(running){
+
+    await new Promise(r=>setTimeout(r,30000));
+
+    if(!running) break;
+
+    data.period++;
+
+    const prediction = analyzeTrend();
+
+    bot.sendMessage(chatId,
+      "Period: "+data.period+
+      "\nPrediction: "+prediction
+    );
+  }
+
+}
+
+bot.onText(/\/start/, msg=>{
 
   const chatId = msg.chat.id;
 
-  if(period === null){
-    bot.sendMessage(chatId,"Send last result first.\nExample: 554 Big");
+  if(data.period === null){
+    bot.sendMessage(chatId,"Send last result first\nExample: 554 Big");
     return;
   }
 
@@ -40,45 +68,21 @@ bot.onText(/\/start/, (msg) => {
 
   running = true;
 
-  if(timer){
-    clearInterval(timer);
-    timer = null;
-  }
+  bot.sendMessage(chatId,"Prediction started");
 
-  bot.sendMessage(chatId,"Prediction Started");
-
-  timer = setInterval(()=>{
-
-    if(!running) return;
-
-    period++;
-
-    const result = predict();
-
-    history.push(result);
-
-    bot.sendMessage(chatId,period+" "+result);
-
-  },30000);
+  loop(chatId);
 
 });
 
-bot.onText(/\/stop/, (msg)=>{
-
-  const chatId = msg.chat.id;
+bot.onText(/\/stop/, msg=>{
 
   running = false;
 
-  if(timer){
-    clearInterval(timer);
-    timer = null;
-  }
-
-  bot.sendMessage(chatId,"Prediction Stopped");
+  bot.sendMessage(msg.chat.id,"Prediction stopped");
 
 });
 
-bot.on("message",(msg)=>{
+bot.on("message", msg=>{
 
   const text = msg.text;
 
@@ -94,9 +98,10 @@ bot.on("message",(msg)=>{
 
     if(!isNaN(p) && (r==="Big" || r==="Small")){
 
-      period = p;
-      history.push(r);
+      data.period = p;
+      data.history.push(r);
 
+      save();
     }
 
   }
