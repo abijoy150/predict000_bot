@@ -5,12 +5,17 @@ const token = "8658261115:AAHFbcedXTWQdZEWVZEDqEm9ZJSt4GLvA_s";
 
 const bot = new TelegramBot(token, { polling: true });
 
-/* Render port fix */
+/* Render Port Fix */
+
 const app = express();
+
 app.get("/", (req,res)=>{
   res.send("Bot running");
 });
-app.listen(process.env.PORT || 3000);
+
+app.listen(process.env.PORT || 3000, ()=>{
+  console.log("Server running");
+});
 
 
 /* DATA */
@@ -20,7 +25,7 @@ let period = 0;
 let interval = null;
 
 
-/* PREDICTION */
+/* PREDICTION FUNCTION */
 
 function predict(){
 
@@ -37,10 +42,11 @@ function predict(){
   }
 
   return Math.random() < 0.5 ? "Big" : "Small";
+
 }
 
 
-/* START */
+/* START COMMAND */
 
 bot.onText(/\/start/, (msg)=>{
 
@@ -52,11 +58,24 @@ bot.onText(/\/start/, (msg)=>{
 
   bot.sendMessage(chatId,"Prediction Started");
 
+  /* First prediction instantly */
+
+  period = period + 1;
+
+  let result = predict();
+
+  history.push(result);
+
+  bot.sendMessage(chatId, period + " " + result);
+
+
+  /* Then every 30 seconds */
+
   interval = setInterval(()=>{
 
     period = period + 1;
 
-    const result = predict();
+    let result = predict();
 
     history.push(result);
 
@@ -67,7 +86,7 @@ bot.onText(/\/start/, (msg)=>{
 });
 
 
-/* STOP */
+/* STOP COMMAND */
 
 bot.onText(/\/stop/, (msg)=>{
 
@@ -83,11 +102,12 @@ bot.onText(/\/stop/, (msg)=>{
 });
 
 
-/* MULTI LINE RESULT INPUT */
+/* MANUAL RESULT INPUT */
 
 bot.on('message',(msg)=>{
 
   const text = msg.text;
+
   if(!text) return;
 
   const lines = text.split("\n");
