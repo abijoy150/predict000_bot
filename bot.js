@@ -1,7 +1,7 @@
 const TelegramBot = require('node-telegram-bot-api');
-const token = "8658261115:AAHFbcedXTWQdZEWVZEDqEm9ZJSt4GLvA_s";
 
-const bot = new TelegramBot(token,{polling:true});
+const token = "8658261115:AAHFbcedXTWQdZEWVZEDqEm9ZJSt4GLvA_s";
+const bot = new TelegramBot(token, { polling: true });
 
 let period = null;
 let history = [];
@@ -9,93 +9,97 @@ let timer = null;
 let running = false;
 
 function predict(){
+  if(history.length < 3){
+    return Math.random() < 0.5 ? "Big" : "Small";
+  }
 
-if(history.length < 3){
-return Math.random() < 0.5 ? "Big":"Small";
+  const a = history[history.length-1];
+  const b = history[history.length-2];
+  const c = history[history.length-3];
+
+  if(a === b && b === c){
+    return a === "Big" ? "Small" : "Big";
+  }
+
+  return Math.random() < 0.5 ? "Big" : "Small";
 }
 
-const a = history[history.length-1];
-const b = history[history.length-2];
-const c = history[history.length-3];
+bot.onText(/\/start/, (msg) => {
 
-if(a===b && b===c){
-return a==="Big"?"Small":"Big";
-}
+  const chatId = msg.chat.id;
 
-return Math.random() < 0.5 ? "Big":"Small";
+  if(period === null){
+    bot.sendMessage(chatId,"Send last result first.\nExample: 554 Big");
+    return;
+  }
 
-}
+  if(running){
+    bot.sendMessage(chatId,"Already running");
+    return;
+  }
 
-bot.onText(/\/start/,msg=>{
+  running = true;
 
-const chatId = msg.chat.id;
+  if(timer){
+    clearInterval(timer);
+    timer = null;
+  }
 
-if(period === null){
-bot.sendMessage(chatId,"First send period example:\n423 Big");
-return;
-}
+  bot.sendMessage(chatId,"Prediction Started");
 
-if(running){
-bot.sendMessage(chatId,"Already Running");
-return;
-}
+  timer = setInterval(()=>{
 
-running=true;
+    if(!running) return;
 
-bot.sendMessage(chatId,"Prediction Started");
+    period++;
 
-timer=setInterval(()=>{
+    const result = predict();
 
-period++;
+    history.push(result);
 
-const result=predict();
+    bot.sendMessage(chatId,period+" "+result);
 
-history.push(result);
-
-bot.sendMessage(chatId,period+" "+result);
-
-},30000);
+  },30000);
 
 });
 
-bot.onText(/\/stop/,msg=>{
+bot.onText(/\/stop/, (msg)=>{
 
-const chatId=msg.chat.id;
+  const chatId = msg.chat.id;
 
-running=false;
+  running = false;
 
-if(timer){
-clearInterval(timer);
-timer=null;
-}
+  if(timer){
+    clearInterval(timer);
+    timer = null;
+  }
 
-bot.sendMessage(chatId,"Prediction Stopped");
+  bot.sendMessage(chatId,"Prediction Stopped");
 
 });
 
-bot.on("message",msg=>{
+bot.on("message",(msg)=>{
 
-const text=msg.text;
+  const text = msg.text;
 
-if(!text) return;
-if(text.startsWith("/")) return;
+  if(!text) return;
+  if(text.startsWith("/")) return;
 
-const parts=text.split(" ");
+  const parts = text.split(" ");
 
-if(parts.length===2){
+  if(parts.length === 2){
 
-const p=parseInt(parts[0]);
-const r=parts[1];
+    const p = parseInt(parts[0]);
+    const r = parts[1];
 
-if(!isNaN(p) && (r==="Big"||r==="Small")){
+    if(!isNaN(p) && (r==="Big" || r==="Small")){
 
-period=p;
+      period = p;
+      history.push(r);
 
-history.push(r);
+    }
 
-}
-
-}
+  }
 
 });
 
