@@ -3,18 +3,18 @@ const express = require('express');
 
 const token = "8658261115:AAHFbcedXTWQdZEWVZEDqEm9ZJSt4GLvA_s";
 
-const bot = new TelegramBot(token, { polling: true });
+const bot = new TelegramBot(token,{polling:true});
 
 /* Render Port Fix */
 
 const app = express();
 
-app.get("/", (req,res)=>{
-  res.send("Bot running");
+app.get("/",(req,res)=>{
+res.send("Bot Running");
 });
 
-app.listen(process.env.PORT || 3000, ()=>{
-  console.log("Server running");
+app.listen(process.env.PORT || 3000,()=>{
+console.log("Server Running");
 });
 
 
@@ -22,117 +22,130 @@ app.listen(process.env.PORT || 3000, ()=>{
 
 let history = [];
 let period = 0;
+let running = false;
 let interval = null;
 
 
-/* PREDICTION FUNCTION */
+/* ANALYSIS FUNCTION */
 
 function predict(){
 
-  if(history.length < 3){
-    return Math.random() < 0.5 ? "Big" : "Small";
-  }
+if(history.length < 3){
+return Math.random() < 0.5 ? "Big" : "Small";
+}
 
-  const a = history[history.length-1];
-  const b = history[history.length-2];
-  const c = history[history.length-3];
+let a = history[history.length-1];
+let b = history[history.length-2];
+let c = history[history.length-3];
 
-  if(a === b && b === c){
-    return a === "Big" ? "Small" : "Big";
-  }
+if(a===b && b===c){
+return a==="Big" ? "Small":"Big";
+}
 
-  return Math.random() < 0.5 ? "Big" : "Small";
+return Math.random() < 0.5 ? "Big":"Small";
 
 }
 
 
-/* START COMMAND */
+/* START */
 
-bot.onText(/\/start/, (msg)=>{
+bot.onText(/\/start/,msg=>{
 
-  const chatId = msg.chat.id;
+let chatId = msg.chat.id;
 
-  if(interval){
-    clearInterval(interval);
-  }
+if(running){
+bot.sendMessage(chatId,"Prediction Already Running");
+return;
+}
 
-  bot.sendMessage(chatId,"Prediction Started");
+running = true;
 
-  /* First prediction instantly */
-
-  period = period + 1;
-
-  let result = predict();
-
-  history.push(result);
-
-  bot.sendMessage(chatId, period + " " + result);
+bot.sendMessage(chatId,"Prediction Started");
 
 
-  /* Then every 30 seconds */
+/* First Result */
 
-  interval = setInterval(()=>{
+period++;
 
-    period = period + 1;
+let result = predict();
 
-    let result = predict();
+history.push(result);
 
-    history.push(result);
+bot.sendMessage(chatId,period+" "+result);
 
-    bot.sendMessage(chatId, period + " " + result);
 
-  },30000);
+/* Loop */
+
+interval = setInterval(()=>{
+
+if(!running) return;
+
+period++;
+
+let result = predict();
+
+history.push(result);
+
+bot.sendMessage(chatId,period+" "+result);
+
+},30000);
 
 });
 
 
-/* STOP COMMAND */
+/* STOP */
 
-bot.onText(/\/stop/, (msg)=>{
+bot.onText(/\/stop/,msg=>{
 
-  const chatId = msg.chat.id;
+let chatId = msg.chat.id;
 
-  if(interval){
-    clearInterval(interval);
-    interval = null;
-  }
+running = false;
 
-  bot.sendMessage(chatId,"Prediction Stopped");
+if(interval){
+clearInterval(interval);
+interval = null;
+}
+
+bot.sendMessage(chatId,"Prediction Stopped");
 
 });
 
 
 /* MANUAL RESULT INPUT */
 
-bot.on('message',(msg)=>{
+bot.on('message',msg=>{
 
-  const text = msg.text;
+let text = msg.text;
 
-  if(!text) return;
+if(!text) return;
 
-  const lines = text.split("\n");
+if(text.startsWith("/")) return;
 
-  lines.forEach(line => {
+let lines = text.split("\n");
 
-    const parts = line.trim().split(" ");
+lines.forEach(line=>{
 
-    if(parts.length === 2){
+let parts = line.trim().split(" ");
 
-      const p = parseInt(parts[0]);
-      const r = parts[1].toLowerCase();
+if(parts.length === 2){
 
-      if(!isNaN(p) && (r === "big" || r === "small")){
+let p = parseInt(parts[0]);
 
-        period = p;
+let r = parts[1].toLowerCase();
 
-        history.push(r === "big" ? "Big" : "Small");
+if(!isNaN(p) && (r==="big" || r==="small")){
 
-      }
+period = p;
 
-    }
+history.push(r==="big" ? "Big":"Small");
 
-  });
+}
+
+}
 
 });
 
-console.log("Bot running...");
+});
+
+
+console.log("Bot Started");
