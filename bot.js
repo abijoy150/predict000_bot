@@ -1,98 +1,148 @@
-const TelegramBot = require("node-telegram-bot-api");
-const express = require("express");
+const TelegramBot = require("node-telegram-bot-api")
+const express = require("express")
+const Tesseract = require("tesseract.js")
+const fs = require("fs")
 
-const token = process.env.BOT_TOKEN || "8658261115:AAHFbcedXTWQdZEWVZEDqEm9ZJSt4GLvA_s";
-const bot = new TelegramBot(token, { polling: true });
+const token = "8658261115:AAHFbcedXTWQdZEWVZEDqEm9ZJSt4GLvA_s"
 
-// ---- Keep-alive web server (for Render + UptimeRobot ping) ----
-const app = express();
-app.get("/", (req, res) => res.send("Bot is running"));
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log("Web server started on " + PORT));
+const bot = new TelegramBot(token,{polling:true})
 
-// ---- Bot state ----
-let running = false;
-let interval = null;
-let history = [];
-let period = 0;
+const app = express()
 
-// Normalize Big/Small
-function norm(v) {
-  if (!v) return null;
-  v = v.toLowerCase();
-  if (v === "big") return "Big";
-  if (v === "small") return "Small";
-  return null;
+app.get("/",(req,res)=>{
+res.send("Bot Running")
+})
+
+app.listen(process.env.PORT || 3000)
+
+let history=[]
+let period=0
+let running=false
+let interval=null
+
+function analyze(){
+
+if(history.length<4){
+return Math.random()>0.5?"Big":"Small"
 }
 
-// Simple analysis (last 4 results)
-function analyze() {
-  if (history.length < 4) {
-    return Math.random() > 0.5 ? "Big" : "Small";
-  }
-  const last = history.slice(-4);
-  const big = last.filter(x => x === "Big").length;
-  const small = last.filter(x => x === "Small").length;
+let last=history.slice(-4)
 
-  if (big > small) return "Small";
-  if (small > big) return "Big";
-  return Math.random() > 0.5 ? "Big" : "Small";
+let big=last.filter(x=>x=="Big").length
+let small=last.filter(x=>x=="Small").length
+
+if(big>small) return "Small"
+if(small>big) return "Big"
+
+return Math.random()>0.5?"Big":"Small"
+
 }
 
-function sendPrediction(chatId) {
-  const result = analyze();
-  period += 1;
-  bot.sendMessage(chatId, `${period} ${result}`);
-  history.push(result);
+function sendPrediction(chatId){
+
+let result=analyze()
+
+period++
+
+bot.sendMessage(chatId,`${period} ${result}`)
+
+history.push(result)
+
 }
 
-function startLoop(chatId) {
-  if (interval) clearInterval(interval);
-  interval = setInterval(() => {
-    if (!running) return;
-    sendPrediction(chatId);
-  }, 30000); // 30 seconds
+function startLoop(chatId){
+
+if(interval){
+clearInterval(interval)
 }
 
-// ---- Commands ----
-bot.onText(/\/start/i, (msg) => {
-  const chatId = msg.chat.id;
-  if (running) {
-    bot.sendMessage(chatId, "Already running.");
-    return;
-  }
-  running = true;
-  bot.sendMessage(chatId, "Prediction Started");
-  sendPrediction(chatId);     // first result instantly
-  startLoop(chatId);          // then every 30s
-});
+interval=setInterval(()=>{
 
-bot.onText(/\/stop/i, (msg) => {
-  const chatId = msg.chat.id;
-  running = false;
-  if (interval) {
-    clearInterval(interval);
-    interval = null;
-  }
-  bot.sendMessage(chatId, "Prediction Stopped");
-});
+if(!running) return
 
-// ---- History input handler ----
-bot.on("message", (msg) => {
-  const text = msg.text;
-  if (!text || text.startsWith("/")) return;
+sendPrediction(chatId)
 
-  const lines = text.split("\n");
-  history = [];
-  lines.forEach(line => {
-    const parts = line.trim().split(/\s+/);
-    if (parts.length === 2) {
-      const p = parseInt(parts[0]);
-      const r = norm(parts[1]);
-      if (!isNaN(p) && r) {
-        period = p;
-        history.push(r);
-      }
-    }
-  });
-});
+},30000)
+
+}
+
+bot.onText(/\/start/i,msg=>{
+
+const chatId=msg.chat.id
+
+running=true
+
+bot.sendMessage(chatId,"Prediction Started")
+
+sendPrediction(chatId)
+
+startLoop(chatId)
+
+})
+
+bot.onText(/\/stop/i,msg=>{
+
+running=false
+
+if(interval){
+clearInterval(interval)
+interval=null
+}
+
+bot.sendMessage(msg.chat.id,"Prediction Stopped")
+
+})
+
+/* Screenshot reader */
+
+bot.on("photo",async msg=>{
+
+const chatId=msg.chat.id
+
+const fileId=msg.photo[msg.photo.length-1].file_id
+
+const file=await bot.getFile(fileId)
+
+const url=`https://api.telegram.org/file/bot${token}/${file.file_path}`
+
+const filePath="image.jpg"
+
+const response=await fetch(url)
+const buffer=await response.arrayBuffer()
+
+fs.writeFileSync(filePath,Buffer.from(buffer))
+
+Tesseract.recognize(filePath,"eng").then(result=>{
+
+let text=result.data.text
+
+console.log(text)
+
+let lines=text.split("\n")
+
+lines.forEach(line=>{
+
+if(line.includes("Big")||line.includes("Small")){
+
+let parts=line.trim().split(" ")
+
+let p=parseInt(parts[0])
+
+let r=parts[1]
+
+if(!isNaN(p)){
+
+period=p
+history.push(r)
+
+}
+
+}
+
+})
+
+bot.sendMessage(chatId,"Screenshot analyzed")
+
+})
+
+})
